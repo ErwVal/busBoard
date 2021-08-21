@@ -7,8 +7,8 @@ const radius = 400;
 //  1.1 Helper function: Asks the user for a postcode, returns the postcode as a string
 function getUserInput(){
     console.log("Please enter a postcode: ")
-    // let userInput = "NW108GQ"
-    let userInput = readline.prompt();
+    let userInput = "E13NQ"
+    //let userInput = readline.prompt();
     
     return userInput
 }
@@ -21,13 +21,40 @@ function getLatLon(body){
     return coordinates
 }
 
-// 1.3 Helper function: Makes an API request for bus stops within radius from specified coordinates
+// 1.3 Helper function:
+function getBusInfo(body,stopName){
+    let buses = [];
+    for (let i = 1; i < body.length; i++) {
+
+        let busNumber = body[i].lineId;
+        let destinationName = body[i].destinationName;
+        let minutesToStation = Math.round((body[i].timeToStation)/60);
+        buses.push([busNumber, destinationName, minutesToStation])
+    }
+    buses.sort((a,b) => a[2] - b[2])
+    if (buses.length > 5) {
+        buses = buses.slice(0,4)
+    }
+    //console.log("buses: ", buses)
+
+    console.log(`\nThe next busses due at ${stopName}:`)
+    for (let i = 0; i< buses.length; i++) {
+        console.log(`The ${buses[i][0]} heading towards ${buses[i][1]}: due in ${buses[i][2]} minutes`)
+    }
+
+
+return buses
+}
+
+// 1.4 Helper function: Makes an API request for bus stops within radius from specified coordinates
 function getBusStops(coordinates) {
     const lat = coordinates[0];
     const lon = coordinates[1];
-    const stopTypes = "NaptanOnstreetBusCoachStopPair"
+    const stopTypes = "NaptanPublicBusCoachTram"; //"NaptanOnstreetBusCoachStopPair"
+    
+    const url = `https://api.tfl.gov.uk/StopPoint/?lat=${lat}&lon=${lon}&stopTypes=${stopTypes}&radius=${radius}`;
 
-    fetch (`https://api.tfl.gov.uk/StopPoint/?lat=${lat}&lon=${lon}&stopTypes=${stopTypes}&radius=${radius}`)
+    fetch (url)
 
     .then(function(response){
         return response.json()
@@ -35,29 +62,50 @@ function getBusStops(coordinates) {
 
     .then(function(body){
         // This is where we manipulate the response object
-        console.log("body: ", body);
+        // console.log("body: ", body);
 
         let busStopsArray = body.stopPoints // Array of dictionaries, each containing info about a bus stop
-        console.log("Bus stops: ", busStopsArray);
+        // console.log("Bus stops: ", busStopsArray);
 
-        let myBusStops = {};
+        let myBusStopsObj = {};
 
         for (let i = 0; i < busStopsArray.length; i++) {
            let commonName = busStopsArray[i].commonName;
-           let lat = busStopsArray[i].lat;
-           let lon = busStopsArray[i].lon;
-           let dist = busStopsArray[i].distance
-           myBusStops[commonName] = {
-                "lat": lat,
-                "lon": lon,
+           let dist = busStopsArray[i].distance;
+           let id = busStopsArray[i].id;
+           myBusStopsObj[commonName] = {
+                "id": id,
                 "distance": dist
-
            }             
         }
 
-        console.log("myBusStops: ", myBusStops);
-    });
+        // console.log("myBusStopsObj: ", myBusStopsObj);
+        
+        let myBusStopsArr = [];
 
+        for (const busStop in myBusStopsObj) {
+            myBusStopsArr.push([myBusStopsObj[busStop].id,myBusStopsObj[busStop].distance,busStop]);
+        }
+
+        myBusStopsArr.sort((a,b) => a[1] - b[1]);
+        // console.log("sorted bus stop array: ", myBusStopsArr);
+
+        let closestStopId1 = myBusStopsArr[0][0];
+        let closestStop1Name1 = myBusStopsArr[0][2];
+        let closestStopId2 = myBusStopsArr[1][0];
+        let closestStopName2 = myBusStopsArr[1][2]
+
+        fetch(`https://api.tfl.gov.uk/StopPoint/${closestStopId1}/Arrivals`)
+            .then(response => response.json())
+
+            .then(body => getBusInfo(body,closestStop1Name1));
+
+        fetch(`https://api.tfl.gov.uk/StopPoint/${closestStopId2}/Arrivals`)
+            .then(response => response.json())
+
+            .then(body => getBusInfo(body,closestStopName2));
+
+    });
 }
 
 
@@ -79,25 +127,5 @@ function getPostcodeLatLon(){
 
 getPostcodeLatLon();
 
-// function getBusInfo(body){
-//     let buses = [];
-//     for (let i = 1; i < body.length; i++) {
-
-//         let busNumber = body[i].lineId;
-//         let destinationName = body[i].destinationName;
-//         let minutesToStation = Math.round((body[i].timeToStation)/60);
-//         buses.push([busNumber, destinationName, minutesToStation])
-//     }
-//     buses.sort((a,b) => a[2] - b[2])
-//     if (buses.length > 5) {
-//         buses = buses.slice(0,4)
-//     }
-//     console.log(buses)
-// return buses
-// }
 
 
-// fetch(`https://api.tfl.gov.uk/StopPoint/${STOP_ID}/Arrivals`)
-//     .then(response => response.json())
-
-//     .then(body => getBusInfo(body));
