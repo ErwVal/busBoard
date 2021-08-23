@@ -4,12 +4,11 @@ const readline = require("readline-sync");
 const STOP_ID = "490008660N";
 const radius = 400;
 
+
 //  1.1 Helper function: Asks the user for a postcode, returns the postcode as a string
 function getUserInput(){
     console.log("Please enter a postcode: ")
-    let userInput = "E13NQ"
-    //let userInput = readline.prompt();
-    
+    let userInput = readline.prompt();
     return userInput
 }
 
@@ -108,24 +107,54 @@ function getBusStops(coordinates) {
     });
 }
 
-
-//  2. Makes a request for the user's postcode, retrieves the coordinates, requests the bus stops within radius of coordinates
-function getPostcodeLatLon(){
-    let postcode = getUserInput();
-
-    fetch(`https://api.postcodes.io/postcodes/${postcode}`)
-
-    .then(function(response){
-        return response.json()
-    })
-
-    .then(function(body){
-        let coordinates = getLatLon(body);
-        getBusStops(coordinates);
-    });
+//2.1 function to read JSON response and check if "invalid postcode" returned 
+function checkValidPostcode(body, userInputOK){
+    if (body.error != "Invalid postcode") {
+        userInputOK = true
+    } 
+    return userInputOK;
 }
 
+//2.2 
+
+//  2. Makes a request for the user's postcode, retrieves the coordinates, requests the bus stops within radius of coordinates
+async function getPostcodeLatLon(){
+
+    let userInputOK = false;
+
+    while (userInputOK == false) {
+        let postcode = getUserInput();
+
+        const res = await fetch(`https://api.postcodes.io/postcodes/${postcode}`);
+
+        const jsonResponse = await res.json();
+
+        let errMsg = jsonResponse.error;
+        // console.log("jsonresponse:", jsonResponse)
+
+        try {
+            if (errMsg != "Invalid postcode") {
+
+                userInputOK = true
+            } 
+    
+            if (userInputOK == false) {
+                throw 'Invalid Postcode'
+            } 
+        }
+        catch(error) {
+            console.log("You appear to have entered an invalid postcode. Please try again (you idiot)")
+        }
+        
+        if(userInputOK == true){
+            let coordinates = getLatLon(jsonResponse);
+            getBusStops(coordinates)
+        }
+    }
+
+    
+}
+
+
 getPostcodeLatLon();
-
-
 
