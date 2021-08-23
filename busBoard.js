@@ -1,15 +1,15 @@
 const fetch = require('node-fetch');
 const readline = require("readline-sync");
 
-const STOP_ID = "490008660N";
-const radius = 400;
-
-
 //  1.1 Helper function: Asks the user for a postcode, returns the postcode as a string
 function getUserInput(){
     console.log("Please enter a postcode: ")
-    let userInput = readline.prompt();
-    return userInput
+    let userLocation = readline.prompt();
+
+    console.log("Please enter a radius (m):")
+    let userRadius = readline.prompt();
+
+    return [userLocation, Math.round(+userRadius)];
 }
 
 //  1.2 Helper function: Retrieves the coordinates from the body object in the response
@@ -36,7 +36,7 @@ function getBusInfo(body,stopName){
     }
     //console.log("buses: ", buses)
 
-    console.log(`\nThe next busses due at ${stopName}:`)
+    console.log(`\nThe next buses due at ${stopName}:`)
     for (let i = 0; i< buses.length; i++) {
         console.log(`The ${buses[i][0]} heading towards ${buses[i][1]}: due in ${buses[i][2]} minutes`)
     }
@@ -45,8 +45,19 @@ function getBusInfo(body,stopName){
 return buses
 }
 
-// 1.4 Helper function: Makes an API request for bus stops within radius from specified coordinates
-function getBusStops(coordinates) {
+// 1.4 Function to check length of BusStopsArr and return true if length > 0
+function checkBusStops(busStopsArray) {
+    console.log(busStopsArray)
+    if (busStopsArray.length > 0) {
+        userRadiusOk = true
+        console.log("the user radius is OK")
+        return true
+    }
+    return false
+}
+
+// 1.5 Helper function: Makes an API request for bus stops within radius from specified coordinates
+function getBusStops(coordinates, radius) {
     const lat = coordinates[0];
     const lon = coordinates[1];
     const stopTypes = "NaptanPublicBusCoachTram"; //"NaptanOnstreetBusCoachStopPair"
@@ -65,7 +76,7 @@ function getBusStops(coordinates) {
 
         let busStopsArray = body.stopPoints // Array of dictionaries, each containing info about a bus stop
         // console.log("Bus stops: ", busStopsArray);
-
+        
         let myBusStopsObj = {};
 
         for (let i = 0; i < busStopsArray.length; i++) {
@@ -81,12 +92,11 @@ function getBusStops(coordinates) {
         // console.log("myBusStopsObj: ", myBusStopsObj);
         
         let myBusStopsArr = [];
-
         for (const busStop in myBusStopsObj) {
             myBusStopsArr.push([myBusStopsObj[busStop].id,myBusStopsObj[busStop].distance,busStop]);
         }
-
         myBusStopsArr.sort((a,b) => a[1] - b[1]);
+
         // console.log("sorted bus stop array: ", myBusStopsArr);
 
         let closestStopId1 = myBusStopsArr[0][0];
@@ -103,58 +113,64 @@ function getBusStops(coordinates) {
             .then(response => response.json())
 
             .then(body => getBusInfo(body,closestStopName2));
-
     });
 }
 
 //2.1 function to read JSON response and check if "invalid postcode" returned 
-function checkValidPostcode(body, userInputOK){
+function checkValidPostcode(body, userPostcodeOK){
     if (body.error != "Invalid postcode") {
-        userInputOK = true
+        userPostcodeOK = true
     } 
-    return userInputOK;
+    return userPostcodeOK;
 }
-
-//2.2 
 
 //  2. Makes a request for the user's postcode, retrieves the coordinates, requests the bus stops within radius of coordinates
 async function getPostcodeLatLon(){
 
-    let userInputOK = false;
-
-    while (userInputOK == false) {
-        let postcode = getUserInput();
+    let userPostcodeOK = false;
+    let userRadiusOK = false;
+    while (!userPostcodeOK || !userRadiusOK) {
+        let userInput = getUserInput();
+        let postcode = userInput[0];
+        let radius = userInput[1];
 
         const res = await fetch(`https://api.postcodes.io/postcodes/${postcode}`);
-
         const jsonResponse = await res.json();
-
         let errMsg = jsonResponse.error;
-        // console.log("jsonresponse:", jsonResponse)
-
         try {
             if (errMsg != "Invalid postcode") {
-
-                userInputOK = true
+                userPostcodeOK = true;
+                console.log("this is the first if statement in the try block")  //successfully xecuting
+                try {
+                    console.log("The tryblock is successfully executing")  // successfully executing
+                    // userRadiusOK = checkBusStops(busStopsArray)
+                    console.log("userradius OK: ", userRadiusOK)
+                    if (userRadiusOK == false) {
+                        console.log("this is the if statement")   // not executing
+                        console.log("Sorry there are no bus stops nearby. Try increasing the radius!");
+                        throw 'No Bus Stops Within Radius';
+                    } else {
+                        console.log("this is the else statement")   
+                        userRadiusOK = true;
+                        let coordinates = getLatLon(jsonResponse);
+                        getBusStops(coordinates, radius)
+                    }
+                }
+        
+                finally {
+                    console.log("finally executed");
+                }
+                
             } 
-    
-            if (userInputOK == false) {
+            if (userPostcodeOK == false) {
                 throw 'Invalid Postcode'
             } 
         }
         catch(error) {
-            console.log("You appear to have entered an invalid postcode. Please try again (you idiot)")
-        }
-        
-        if(userInputOK == true){
-            let coordinates = getLatLon(jsonResponse);
-            getBusStops(coordinates)
+            console.log("You appear to have entered an invalid postcode. Please try again")
         }
     }
-
-    
-}
-
+};
 
 getPostcodeLatLon();
 
